@@ -1,7 +1,22 @@
+--[[ testplugin.lua © Penguin_Spy 2024
+
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+]]
+
 print("woah this is lua")
 
 launcher.define_game{
-  id = "test"
+  id = "test",
+  name = "Splatoon 2",
+  hero = "hero.png"
+}
+
+launcher.define_game{
+  id = "test2",
+  name = "Among Us",
+  hero = "hero2 - Copy.png"
 }
 
 launcher.on_play(function(event)
@@ -10,3 +25,6 @@ launcher.on_play(function(event)
 end)
 
 print("launcher.name = " .. tostring(launcher.name))
+
+os.sleep(5)
+print("finished loading")
