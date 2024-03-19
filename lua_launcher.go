@@ -9,18 +9,11 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	lua "github.com/yuin/gopher-lua"
 )
 
-func sleep(L *lua.LState) int {
-	duration := L.CheckNumber(1)
-	time.Sleep(time.Second * time.Duration(duration))
-	return 0
-}
-
-func launcher_open_lua_lib(L *lua.LState) int {
+func launcher_openLuaLib(L *lua.LState) int {
 	// register functions to the table
 	mod := L.SetFuncs(L.NewTable(), map[string]lua.LGFunction{
 		"define_game": define_game,
@@ -31,8 +24,6 @@ func launcher_open_lua_lib(L *lua.LState) int {
 	L.SetField(mod, "name", lua.LString("value"))
 
 	L.SetGlobal("launcher", mod)
-	os := L.GetGlobal("os")
-	L.SetField(os, "sleep", L.NewFunction(sleep))
 	return 1
 }
 
@@ -55,13 +46,17 @@ func define_game(L *lua.LState) int {
 		return 0
 	}
 
-	fmt.Printf("got id, name, and hero path as strings: %q %q %q\n", id, name, heroPath)
+	pluginId := L.G.Registry.RawGetString("plugin_id").String()
 
-	RegisterGame(Game(id.String(), name.String(), heroPath.String()))
+	fmt.Printf("got id, name, and hero path as strings: %q %q %q %q\n", pluginId, id, name, heroPath)
+
+	RegisterGame(Game(id.String(), name.String(), heroPath.String(), pluginId))
 
 	return 0
 }
 
 func on_play(L *lua.LState) int {
+	callback := L.CheckFunction(1)
+	L.G.Registry.RawSetString("on_play", callback)
 	return 0
 }

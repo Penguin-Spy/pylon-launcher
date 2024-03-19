@@ -27,21 +27,23 @@ func getImageFromFilePath(filePath string) (image.Image, error) {
 }
 
 type game struct {
-	id   string
-	name string
-	hero image.Image
+	id       string      // the internal ID of this game
+	name     string      // the user-facing title of this game
+	hero     image.Image // the "hero" image, shown in the background of the game's page
+	pluginId string      // the plugin that defined this game
 }
 
-func Game(id string, name string, heroFile string) *game {
+func Game(id string, name string, heroFile string, pluginId string) *game {
 	image, err := getImageFromFilePath(heroFile)
 	if err != nil {
-		fmt.Printf("loading image %q failed\n", heroFile)
+		fmt.Fprintf(os.Stderr, "[GameManager] loading image %q failed\n", heroFile)
 		panic(err)
 	}
 	return &game{
 		id,
 		name,
 		image,
+		pluginId,
 	}
 }
 

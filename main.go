@@ -7,24 +7,12 @@
 
 package main
 
-import (
-	g "github.com/AllenDang/giu"
-	lua "github.com/yuin/gopher-lua"
-)
-
 func main() {
 	go func() {
-		L := lua.NewState()
-		defer L.Close()
-		launcher_open_lua_lib(L)
-		if err := L.DoFile("testplugin.lua"); err != nil {
-			panic(err)
-		}
-		// once all plugins have loaded
-		viewing_game = games[0]
-		gui_state = guistate_game
-		g.Update()
+		loadAllPlugins()
 	}()
 
 	GUI_start()
+
+	closeAllPlugins()
 }

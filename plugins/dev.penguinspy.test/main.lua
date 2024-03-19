@@ -1,4 +1,4 @@
---[[ testplugin.lua © Penguin_Spy 2024
+--[[ test.lua © Penguin_Spy 2024
 
   This Source Code Form is subject to the terms of the Mozilla Public
   License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -21,10 +21,10 @@ launcher.define_game{
 
 launcher.on_play(function(event)
   print(event.id, event.option)
-  os.exec("echo launched game!!")
+  os.execute("echo launched game!!")
 end)
 
 print("launcher.name = " .. tostring(launcher.name))
 
-os.sleep(5)
+os.sleep(2)
 print("finished loading")

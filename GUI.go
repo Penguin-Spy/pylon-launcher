@@ -18,10 +18,6 @@ func onClickMe() {
 	fmt.Println("Hello world!")
 }
 
-func onImSoCute() {
-	fmt.Println("Im sooooooo cute!!")
-}
-
 type FullImageWidget struct {
 	id    string
 	image image.Image
@@ -45,25 +41,27 @@ func (w *FullImageWidget) Build() {
 		Build()
 }
 
-func game_list() []g.Widget {
+func gameList() []g.Widget {
 	items := make([]g.Widget, len(games))
 
 	for i, game := range games {
 		items[i] = g.Button(game.name).OnClick(func() {
 			fmt.Printf("button for %s clicked: %v\n", game.name, game)
-			viewing_game = game
+			viewingGame = game
 		})
 	}
 
 	return items
 }
 
-func game_view(game *game) g.Widget {
+func gameView(game *game) g.Widget {
 	return g.Column(
 		FullImage(game.id, game.hero),
-		g.Label(game.name),
+		g.Label(game.name).Font(fonts["header"]),
 		g.Button("Click Me").OnClick(onClickMe),
-		g.Button("I'm so cute").OnClick(onImSoCute),
+		g.Button("I'm so cute").OnClick(func() {
+			callOnPlay(game)
+		}),
 	)
 }
 
@@ -73,33 +71,35 @@ var split float32 = 200
 type GUIState int
 
 const (
-	guistate_loading GUIState = iota
-	guistate_game
+	guiStateLoading GUIState = iota
+	guiStateGame
 )
 
-var gui_state GUIState = guistate_loading
-var viewing_game *game
+var guiState GUIState = guiStateLoading
+var viewingGame *game
 
 func loop() {
-
-	switch gui_state {
-	case guistate_loading:
+	switch guiState {
+	case guiStateLoading:
 		g.SingleWindow().Layout(
-			g.Align(g.AlignCenter).To(g.Label("loading...")),
+			g.Align(g.AlignCenter).To(g.Label("loading...").Font(fonts["header"])),
 		)
 
-	case guistate_game:
+	case guiStateGame:
 		g.SingleWindow().Layout(
 			g.SplitLayout(g.DirectionVertical, &split,
-				g.Column(game_list()...),
-				g.Column(game_view(viewing_game)),
+				g.Column(gameList()...),
+				g.Column(gameView(viewingGame)),
 			),
 		)
 	}
 }
 
+var fonts = make(map[string]*g.FontInfo)
+
 func GUI_start() {
 	wnd = g.NewMasterWindow("Pylon Launcher", 900, 600, 0)
-
+	g.Context.FontAtlas.SetDefaultFont("fonts/Montserrat-Regular.ttf", 18)
+	fonts["header"] = g.Context.FontAtlas.AddFont("fonts/MontserratAlternates-Regular.ttf", 48)
 	wnd.Run(loop)
 }
