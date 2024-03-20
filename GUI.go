@@ -8,14 +8,14 @@
 package main
 
 import (
-	"fmt"
 	"image"
+	"log"
 
 	g "github.com/AllenDang/giu"
 )
 
 func onClickMe() {
-	fmt.Println("Hello world!")
+	log.Println("Hello world!")
 }
 
 type FullImageWidget struct {
@@ -45,8 +45,9 @@ func gameList() []g.Widget {
 	items := make([]g.Widget, len(games))
 
 	for i, game := range games {
-		items[i] = g.Button(game.name).OnClick(func() {
-			fmt.Printf("button for %s clicked: %v\n", game.name, game)
+		name := game.name
+		items[i] = g.Button(name).OnClick(func() {
+			log.Printf("button for %s clicked: %v\n", game.name, game)
 			viewingGame = game
 		})
 	}
@@ -86,10 +87,17 @@ func loop() {
 		)
 
 	case guiStateGame:
+		var mainContent g.Widget
+		if viewingGame != nil {
+			mainContent = gameView(viewingGame)
+		} else {
+			mainContent = g.Align(g.AlignCenter).To(g.Label("no game selected").Font(fonts["header"]))
+		}
+
 		g.SingleWindow().Layout(
 			g.SplitLayout(g.DirectionVertical, &split,
 				g.Column(gameList()...),
-				g.Column(gameView(viewingGame)),
+				g.Column(mainContent),
 			),
 		)
 	}

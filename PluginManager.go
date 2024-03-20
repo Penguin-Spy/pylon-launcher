@@ -8,7 +8,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -17,14 +17,14 @@ import (
 	lua "github.com/yuin/gopher-lua"
 )
 
-const pluginsDir = "plugins"
-
 type plugin struct {
-	id string      // the plugin's internal id
-	L  *lua.LState // the Lua state of the plugin
+	id    string      // the plugin's internal id
+	L     *lua.LState // the Lua state of the plugin
+	games []*game     // games this plugin has defined. not registered until the plugin successfully finishes loading
 }
 
 var plugins = make(map[string]*plugin)
+var pluginsDir string
 
 func sleep(L *lua.LState) int {
 	duration := L.CheckNumber(1)
@@ -32,61 +32,100 @@ func sleep(L *lua.LState) int {
 	return 0
 }
 
+func loadLuaLib(L *lua.LState, loader lua.LGFunction) *lua.LTable {
+	L.Push(L.NewFunction(loader))
+	L.Call(0, 1)
+	return L.CheckTable(-1)
+}
+
+// creates a new Lua state for a plugin
 func newLuaState(id string) *lua.LState {
-	L := lua.NewState()
+	L := lua.NewState(lua.Options{SkipOpenLibs: true})
+	packageLib := loadLuaLib(L, lua.OpenPackage) // TODO: probably reimplement require and remove package
+	packageLib.RawSetString("path", lua.LString(filepath.Join(getPluginDir(id), "?.lua")))
+	loadLuaLib(L, lua.OpenBase)
+	loadLuaLib(L, lua.OpenTable)
+	loadLuaLib(L, lua.OpenString)
+	loadLuaLib(L, lua.OpenMath)
+	loadLuaLib(L, lua.OpenCoroutine)
+	//loadLuaLib(L, lua.OpenIo)
+	//loadLuaLib(L, lua.OpenOs)
+	//loadLuaLib(L, lua.OpenDebug)
+	loadLuaLib(L, OpenLauncher)
 
-	launcher_openLuaLib(L)
+	//os := L.GetGlobal("os")
+	L.SetGlobal("sleep", L.NewFunction(sleep))
 
-	os := L.GetGlobal("os")
-	L.SetField(os, "sleep", L.NewFunction(sleep))
-
-	L.G.Registry.RawSetString("plugin_id", lua.LString(id))
+	// used to determine which plugin called our API functions
+	L.SetField(L.Get(lua.RegistryIndex), "plugin_id", lua.LString(id))
 	return L
 }
 
 func loadAllPlugins() {
-	dir, err := os.ReadDir(pluginsDir)
+	pluginsDir = filepath.Join(appDataPath, "plugins")
+	if err := os.MkdirAll(pluginsDir, os.ModeDir); err != nil {
+		log.Printf("[PluginManager] failed to create plugins directory! - %v\n", err)
+		return
+	}
+	pluginsDirEntries, err := os.ReadDir(pluginsDir)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[PluginManager] failed to load plugin directory! - %v\n", err)
+		log.Printf("[PluginManager] failed to read plugins directory! - %v\n", err)
 		return
 	}
 
-	for _, entry := range dir {
+	for _, entry := range pluginsDirEntries {
 		if !entry.IsDir() {
-			fmt.Printf("[PluginManager] ignoring non-directory item %v\n", entry)
+			log.Printf("[PluginManager] ignoring non-directory item %q\n", entry)
 		} else {
 			var id = entry.Name()
-			var path = filepath.Join(pluginsDir, id, "main.lua")
-			fmt.Printf("[PluginManager] loading plugin %q\n", id)
+			log.Printf("[PluginManager] loading plugin %q\n", id)
 
 			L := newLuaState(id)
-			plugins[id] = &plugin{id, L}
-			if err := L.DoFile(path); err != nil {
-				fmt.Fprintf(os.Stderr, "[PluginManager] failed to load plugin %v", path)
+			plugin := &plugin{id, L, make([]*game, 0)}
+			plugins[id] = plugin
+			if err := L.DoFile(filepath.Join(getPluginDir(id), "main.lua")); err != nil {
+				log.Printf("[PluginManager] error while loading plugin %q:\n%v", id, err)
 				L.Close()
 				continue
+			} else {
+				// once the plugin has successfully loaded, add its games to the list
+				for _, game := range plugin.games {
+					RegisterGame(game)
+				}
 			}
 		}
 	}
 
 	// once all plugins have loaded
-	viewingGame = games[0] // TODO: this crashes if no games were registered
+	if len(games) > 0 {
+		viewingGame = games[0]
+	}
 	guiState = guiStateGame
-	g.Update()
+	// only update the GUI if it's been created yet
+	if g.Context != nil {
+		g.Update()
+	}
 }
 
 func closeAllPlugins() {
 	for _, plugin := range plugins {
-		plugin.L.Close()
+		if !plugin.L.IsClosed() {
+			plugin.L.Close()
+		}
 	}
+}
+
+// gets the absolute path to the directory of the specified plugin
+func getPluginDir(id string) string {
+	return filepath.Join(pluginsDir, id)
 }
 
 func callPluginMethod(plugin *plugin, method string, arg lua.LValue) {
 	L := plugin.L
 
-	function, ok := L.G.Registry.RawGetString(method).(*lua.LFunction)
+	function, ok := L.GetField(L.Get(lua.RegistryIndex), method).(*lua.LFunction)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "[PluginManager] could not get plugin %q method %q - %v\n", plugin.id, method, function)
+		log.Printf("[PluginManager] could not get plugin %q method %q - %v\n", plugin.id, method, function)
 		return
 	}
 
@@ -94,12 +133,12 @@ func callPluginMethod(plugin *plugin, method string, arg lua.LValue) {
 	L.Push(arg)
 	// one argument, zero return values, return error normally
 	if err := L.PCall(1, 0, nil); err != nil {
-		fmt.Fprintf(os.Stderr, "[PluginManager] error while calling plugin %q method %q - %v\n", plugin.id, method, err)
+		log.Printf("[PluginManager] error while calling plugin %q method %q - %v\n", plugin.id, method, err)
 	}
 }
 
 func callOnPlay(game *game) {
-	plugin := plugins[game.pluginId]
+	plugin := game.plugin
 	t := plugin.L.NewTable()
 	t.RawSetString("id", lua.LString(game.id))
 	t.RawSetString("option", lua.LString("default"))

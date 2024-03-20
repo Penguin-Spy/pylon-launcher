@@ -8,22 +8,18 @@
 package main
 
 import (
-	"fmt"
-
 	lua "github.com/yuin/gopher-lua"
 )
 
-func launcher_openLuaLib(L *lua.LState) int {
+func OpenLauncher(L *lua.LState) int {
 	// register functions to the table
-	mod := L.SetFuncs(L.NewTable(), map[string]lua.LGFunction{
+	mod := L.RegisterModule("launcher", map[string]lua.LGFunction{
 		"define_game": define_game,
 		"on_play":     on_play,
 	})
-
 	// register other stuff
 	L.SetField(mod, "name", lua.LString("value"))
-
-	L.SetGlobal("launcher", mod)
+	L.Push(mod)
 	return 1
 }
 
@@ -46,17 +42,19 @@ func define_game(L *lua.LState) int {
 		return 0
 	}
 
-	pluginId := L.G.Registry.RawGetString("plugin_id").String()
-
-	fmt.Printf("got id, name, and hero path as strings: %q %q %q %q\n", pluginId, id, name, heroPath)
-
-	RegisterGame(Game(id.String(), name.String(), heroPath.String(), pluginId))
+	pluginId := L.GetField(L.Get(lua.RegistryIndex), "plugin_id").String()
+	plugin := plugins[pluginId]
+	if game, err := DefineGame(id.String(), name.String(), heroPath.String(), plugin); err != nil {
+		L.RaiseError("failed to define game - %v", err)
+	} else {
+		plugin.games = append(plugin.games, game)
+	}
 
 	return 0
 }
 
 func on_play(L *lua.LState) int {
 	callback := L.CheckFunction(1)
-	L.G.Registry.RawSetString("on_play", callback)
+	L.SetField(L.Get(lua.RegistryIndex), "on_play", callback)
 	return 0
 }

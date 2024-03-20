@@ -5,7 +5,7 @@
   file, You can obtain one at http://mozilla.org/MPL/2.0/.
 ]]
 
-print("woah this is lua")
+print("woah this is main.lua")
 
 launcher.define_game{
   id = "test",
@@ -26,5 +26,11 @@ end)
 
 print("launcher.name = " .. tostring(launcher.name))
 
-os.sleep(2)
+print(math, require("math"))
+print(_G.launcher, package.loaded.launcher, launcher, require("launcher"))
+
+print(package.path)
+print(require "other")
+
+sleep(2)
 print("finished loading")
